@@ -16,6 +16,8 @@ Regarding MIDI support, only MIDI message reception is tested in this example. H
 
 You can see examples of how these structures are used inside the `while(1)` loop in `main()`. When a MIDI Control Change message is received on controller number 20 (`0x14`) with a value greater than 63, the onboard LED starts blinking faster (100 ms period). Values lower than 64 make the LED return to the default blinking period used in the original TinyUSB example.
 
+In Linux you can easily test the MIDI with the following commands from ALSA:`amidi -p hw:3,0,0 -S 'B0 14 7F` to send a CC message (0xB) to controller 0x14 with value 0x7F to the harware device 3,0,0. Check your hardware id with `amidi -l`.
+
 ## Important notes
 
 For this specific microcontroller, a few adjustments were required to make UAC2 work properly. The most important one is ensuring that the USB peripheral can access a valid RAM region.
