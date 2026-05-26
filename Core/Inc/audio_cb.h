@@ -12,9 +12,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <stdint.h>
 
 void audio_init(void);
-
+uint8_t audio_is_streaming(void);
 
 #ifdef __cplusplus
 }

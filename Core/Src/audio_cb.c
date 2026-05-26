@@ -8,9 +8,12 @@
 
 #include "audio_cb.h"
 #include "tusb.h"
+#include "usb_descriptors.h"
 
 #define AUDIO_CHANNELS CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX
 #define AUDIO_TOTAL_CHANNELS (AUDIO_CHANNELS + 1)
+
+uint8_t audio_streaming_flag = 0;
 
 // Audio controls
 // Current states
@@ -26,6 +29,7 @@ audio20_control_range_4_n_t(1) sampleFreqRng;  // Sample frequency range state
 /* Initialization of the variables used by the TinyUSB audio Callbacks. */
 void audio_init(void){
 
+	audio_streaming_flag = 0;
 	sampFreq = CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE;
 	clkValid = 1;
 	sampleFreqRng.wNumSubRanges = 1;
@@ -289,9 +293,30 @@ bool tud_audio_set_itf_close_ep_cb(uint8_t rhport, tusb_control_request_t const 
 
 bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request) {
   (void) rhport;
+  // The value of Alternate Setting comes from wValue (0 = Off, 1 = Streaming)
+  uint8_t itf = TU_U16_LOW(p_request->wIndex);
+  uint8_t alt = TU_U16_LOW(p_request->wValue);
+
+  if (itf == ITF_NUM_AUDIO_STREAMING)
+  {
+      if (alt == 1)
+      {
+    	  audio_streaming_flag = 1;
+      }
+      else
+      {
+    	  audio_streaming_flag = 0;
+      }
+  }
 
   // The value of Alternate Setting comes from wValue (0 = Off, 1 = Streaming)
   TU_LOG1("Audio Alt Setting: %d\r\n", p_request->wValue);
 
   return true;
+}
+
+
+uint8_t audio_is_streaming(void)
+{
+    return audio_streaming_flag;
 }

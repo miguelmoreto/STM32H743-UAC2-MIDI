@@ -141,8 +141,8 @@ int main(void)
 
   /* USER CODE BEGIN Init */
   MPU_Config_USB_D2_SRAM();
-  SCB_DisableDCache();
-  SCB_DisableICache();
+  //SCB_DisableDCache();
+  //SCB_DisableICache();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -158,7 +158,7 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  //Init device stack on configured roothub port:
+  //Init Tiny USB device stack on configured roothub port:
   tusb_rhport_init_t dev_init = {
       .role = TUSB_ROLE_DEVICE,
       .speed = TUSB_SPEED_FULL};
@@ -167,9 +167,7 @@ int main(void)
 
   // Init values for UAC2 example callbacks:
   audio_init();
-
   printf("Moreto STM32H743 TinyUSB Audio and MIDI example\r\n");
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -304,10 +302,17 @@ void tud_resume_cb(void) {
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
-// Fills the buffer every ms with a sinusoidal signal.
 
+
+// Fills the buffer every ms with a sinusoidal signal.
 void audio_task(void)
 {
+  // The audio_streaming_flag is updated in audio_cb.h when the activates the
+  // streaming interface.
+  if (!audio_is_streaming())
+	  // Interface not active, return.
+      return;
+
   static uint32_t start_ms = 0;
   uint32_t curr_ms = tusb_time_millis_api();
 
@@ -317,9 +322,9 @@ void audio_task(void)
   start_ms = curr_ms;
   static int32_t s = 0;
 
-  // Fill the buffer with a sinusoid:
+  // Fill the buffer with a sine wave:
   for (size_t i = 0; i < AUDIO_BUFFER_SIZE/2; i++) {
-	//test_buffer_audio[i] = (int32_t)(AMPLITUDE * sinf(phase));
+
 #if CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 2
 	s = ((AMPLITUDE * sinf(phase))* 32767.0f);
 	// Left:
@@ -338,9 +343,8 @@ void audio_task(void)
     audio_buffer[6*i + 4] = (uint8_t)((s >> 8) & 0xFF);
     audio_buffer[6*i + 5] = (uint8_t)((s >> 16) & 0xFF);
 #elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 4
-    //s = (int32_t)((AMPLITUDE * sinf(phase))* 2147483647.0f);
     s = (int32_t)((AMPLITUDE * sinf(phase)) * 8388607.0f);
-    s <<= 8;
+    s <<= 8; // The USB Host uses the 3 most significant bytes.
     // Left:
     audio_buffer[2*i] = s;
     // Right:
@@ -353,14 +357,7 @@ void audio_task(void)
     }
   } // for
   // Writes AUDIO_BUFFER_SIZE samples:
-  //tud_audio_write((uint32_t *) test_buffer_audio, sizeof(test_buffer_audio));
-//#if CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 2
-//  tud_audio_write(audio_buffer, sizeof(audio_buffer));// AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX);
-//#elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 3
   tud_audio_write((uint8_t *) audio_buffer, sizeof(audio_buffer));// AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX);
-//#elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 4
-//  tud_audio_write(audio_buffer, sizeof(audio_buffer));// AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX);
-//#endif
 }
 
 /*
