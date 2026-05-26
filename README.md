@@ -40,13 +40,13 @@ The USB audio streaming mode was configured as **Synchronous**. The device alway
 
 * 2 channels
 
-* 3 bytes per channel
+* 2 (16bit), 3 (24bit) or 4 (24bits in 32bits int) bytes per channel, selected by the macro `CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX` in `tusb_config.h`.
 
-Thus the endpoint size (bytes for each ms frame) is 48\*2\*3=288 bytes.
+Thus the endpoint size (bytes for each ms frame) can be 48\*2\*{2, 3, 4}={192, 288, 384} bytes.
 
-However, the default TinyUSB macros used to create audio descriptors automatically add one extra sample to the endpoint size. This behavior exists to support **Asynchronous** and **Adaptive** synchronization modes, for which, as far as I understand, the host may request packets with slightly different sizes over time.
+However, the default TinyUSB macros used to create audio descriptors automatically add one extra sample to the endpoint size. This behavior exists to support Asynchronous and Adaptive synchronization modes, for which, as far as I understand, the host may request packets with slightly different sizes over time.
 
-In my case, if I set the macro `CFG_TUD_AUDIO_EP_SZ_IN` to 288, the audio stream only worked correctly after modifying `audio_device.c` by commenting line 1841 and adding line 1842. There is an `ASSERT` that fails when the endpoint size is configured using the fixed number of samples without the additional sample.
+In my case, if I set the macro `CFG_TUD_AUDIO_EP_SZ_IN` to one of the values above, the audio stream only worked correctly after modifying `audio_device.c` by **commenting line 1841 and adding line 1842**. There is an `ASSERT` that fails when the endpoint size is configured using the fixed number of samples without the additional sample.
 
 With the extra sample enabled, the audio stream consistently caused a `HardFault` on the STM32H743 for reasons that I still do not fully understand. I am not sure whether this is the best or most correct solution. Further testing is needed.
 

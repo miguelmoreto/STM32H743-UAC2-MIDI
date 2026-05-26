@@ -79,8 +79,13 @@ MIDI_MsgUnion_typedef midi_rx_msg;
 // that the USB device can access (check linker script).
 __attribute__((section(".usb_ram")))
 __attribute__((aligned(4)))
-uint32_t test_buffer_audio[AUDIO_BUFFER_SIZE];
-uint8_t usb_buffer[AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX];
+#if CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 2
+int16_t audio_buffer[AUDIO_BUFFER_SIZE];
+#elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 3
+uint8_t audio_buffer[AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX];
+#elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 4
+int32_t audio_buffer[AUDIO_BUFFER_SIZE];
+#endif
 
 volatile uint32_t system_ticks = 0;
 
@@ -313,33 +318,49 @@ void audio_task(void)
   static int32_t s = 0;
 
   // Fill the buffer with a sinusoid:
-  for (size_t i = 0; i < AUDIO_BUFFER_SIZE; i++) {
+  for (size_t i = 0; i < AUDIO_BUFFER_SIZE/2; i++) {
 	//test_buffer_audio[i] = (int32_t)(AMPLITUDE * sinf(phase));
+#if CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 2
+	s = ((AMPLITUDE * sinf(phase))* 32767.0f);
+	// Left:
+	audio_buffer[2*i] = (int16_t)s;
+	// Right:
+	audio_buffer[2*i+1] = (int16_t)s;
+#elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 3
+	// For 24bits in 4 bytes, the packing needs to be done manually.
 	s = (int32_t)((AMPLITUDE * sinf(phase))* 8388607.0f);
-
-#if CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX == 1
-    usb_buffer[3*i + 0] = (uint8_t)(s & 0xFF);
-    usb_buffer[3*i + 1] = (uint8_t)((s >> 8) & 0xFF);
-    usb_buffer[3*i + 2] = (uint8_t)((s >> 16) & 0xFF);
-#elif CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX == 2
     // LEFT
-    usb_buffer[6*i + 0] = (uint8_t)(s & 0xFF);
-    usb_buffer[6*i + 1] = (uint8_t)((s >> 8) & 0xFF);
-    usb_buffer[6*i + 2] = (uint8_t)((s >> 16) & 0xFF);
+    audio_buffer[6*i + 0] = (uint8_t)(s & 0xFF);
+    audio_buffer[6*i + 1] = (uint8_t)((s >> 8) & 0xFF);
+    audio_buffer[6*i + 2] = (uint8_t)((s >> 16) & 0xFF);
     // RIGHT
-    usb_buffer[6*i + 3] = (uint8_t)(s & 0xFF);
-    usb_buffer[6*i + 4] = (uint8_t)((s >> 8) & 0xFF);
-    usb_buffer[6*i + 5] = (uint8_t)((s >> 16) & 0xFF);
+    audio_buffer[6*i + 3] = (uint8_t)(s & 0xFF);
+    audio_buffer[6*i + 4] = (uint8_t)((s >> 8) & 0xFF);
+    audio_buffer[6*i + 5] = (uint8_t)((s >> 16) & 0xFF);
+#elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 4
+    //s = (int32_t)((AMPLITUDE * sinf(phase))* 2147483647.0f);
+    s = (int32_t)((AMPLITUDE * sinf(phase)) * 8388607.0f);
+    s <<= 8;
+    // Left:
+    audio_buffer[2*i] = s;
+    // Right:
+    audio_buffer[2*i+1] = s;
 #endif
     phase += phase_inc;
 
     if (phase > 2.0f * 3.1415926f) {
       phase -= 2.0f * 3.1415926f;
     }
-  }
+  } // for
   // Writes AUDIO_BUFFER_SIZE samples:
   //tud_audio_write((uint32_t *) test_buffer_audio, sizeof(test_buffer_audio));
-  tud_audio_write((uint8_t *) usb_buffer, AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX);
+//#if CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 2
+//  tud_audio_write(audio_buffer, sizeof(audio_buffer));// AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX);
+//#elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 3
+  tud_audio_write((uint8_t *) audio_buffer, sizeof(audio_buffer));// AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX);
+//#elif CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX == 4
+//  tud_audio_write(audio_buffer, sizeof(audio_buffer));// AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX);
+//#endif
 }
 
 /*
