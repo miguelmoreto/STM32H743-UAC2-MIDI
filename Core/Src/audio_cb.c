@@ -9,15 +9,18 @@
 #include "audio_cb.h"
 #include "tusb.h"
 
+#define AUDIO_CHANNELS CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX
+#define AUDIO_TOTAL_CHANNELS (AUDIO_CHANNELS + 1)
+
 // Audio controls
 // Current states
-bool mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];      // +1 for master channel 0
-uint16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];// +1 for master channel 0
+bool mute[AUDIO_TOTAL_CHANNELS];      // +1 for master channel 0
+uint16_t volume[AUDIO_TOTAL_CHANNELS];// +1 for master channel 0
 uint32_t sampFreq;
 uint8_t clkValid;
 
 // Range states
-audio20_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];// Volume range state
+audio20_control_range_2_n_t(1) volumeRng[AUDIO_TOTAL_CHANNELS];// Volume range state
 audio20_control_range_4_n_t(1) sampleFreqRng;  // Sample frequency range state
 
 /* Initialization of the variables used by the TinyUSB audio Callbacks. */
@@ -98,7 +101,8 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
       case AUDIO20_FU_CTRL_MUTE:
         // Request uses format layout 1
         TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_1_t));
-
+        if (channelNum > AUDIO_TOTAL_CHANNELS)
+            return false;
         mute[channelNum] = ((audio20_control_cur_1_t *) pBuff)->bCur;
 
         TU_LOG2("    Set Mute: %d of channel: %u\r\n", mute[channelNum], channelNum);
@@ -108,6 +112,8 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
         // Request uses format layout 2
         TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_2_t));
 
+        if (channelNum > AUDIO_TOTAL_CHANNELS)
+            return false;
         volume[channelNum] = (uint16_t) ((audio20_control_cur_2_t *) pBuff)->bCur;
 
         TU_LOG2("    Set Volume: %d dB of channel: %u\r\n", volume[channelNum], channelNum);
@@ -173,9 +179,13 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
         // The terminal connector control only has a get request with only the CUR attribute.
         audio20_desc_channel_cluster_t ret;
 
-        // Those are dummy values for now
+        // Works for 1 or 2 channels:
         ret.bNrChannels = 1;
-        ret.bmChannelConfig = (audio20_channel_config_t) 0;
+#if AUDIO_CHANNELS == 1
+        ret.bmChannelConfig = AUDIO20_CHANNEL_CONFIG_NON_PREDEFINED;
+#elif AUDIO_CHANNELS == 2
+        ret.bmChannelConfig = AUDIO20_CHANNEL_CONFIG_FRONT_LEFT | AUDIO20_CHANNEL_CONFIG_FRONT_RIGHT;
+#endif
         ret.iChannelNames = 0;
 
         TU_LOG2("    Get terminal connector\r\n");
@@ -192,6 +202,8 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
 
   // Feature unit
   if (entityID == 2) {
+    if (channelNum > AUDIO_TOTAL_CHANNELS)
+          return false;
     switch (ctrlSel) {
       case AUDIO20_FU_CTRL_MUTE:
         // Audio control mute cur parameter block consists of only one byte - we thus can send it right away
@@ -209,8 +221,7 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
             TU_LOG2("    Get Volume range of channel: %u\r\n", channelNum);
 
             // Copy values - only for testing - better is version below
-            audio20_control_range_2_n_t(1)
-                ret;
+            audio20_control_range_2_n_t(1) ret;
 
             ret.wNumSubRanges = 1;
             ret.subrange[0].bMin = -90;// -90 dB

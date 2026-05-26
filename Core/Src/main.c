@@ -39,7 +39,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define AUDIO_BUFFER_SIZE 	48//CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX
+#define AUDIO_BUFFER_SIZE 	48 * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX//CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -317,10 +317,20 @@ void audio_task(void)
 	//test_buffer_audio[i] = (int32_t)(AMPLITUDE * sinf(phase));
 	s = (int32_t)((AMPLITUDE * sinf(phase))* 8388607.0f);
 
+#if CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX == 1
     usb_buffer[3*i + 0] = (uint8_t)(s & 0xFF);
     usb_buffer[3*i + 1] = (uint8_t)((s >> 8) & 0xFF);
     usb_buffer[3*i + 2] = (uint8_t)((s >> 16) & 0xFF);
-
+#elif CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX == 2
+    // LEFT
+    usb_buffer[6*i + 0] = (uint8_t)(s & 0xFF);
+    usb_buffer[6*i + 1] = (uint8_t)((s >> 8) & 0xFF);
+    usb_buffer[6*i + 2] = (uint8_t)((s >> 16) & 0xFF);
+    // RIGHT
+    usb_buffer[6*i + 3] = (uint8_t)(s & 0xFF);
+    usb_buffer[6*i + 4] = (uint8_t)((s >> 8) & 0xFF);
+    usb_buffer[6*i + 5] = (uint8_t)((s >> 16) & 0xFF);
+#endif
     phase += phase_inc;
 
     if (phase > 2.0f * 3.1415926f) {
@@ -329,7 +339,7 @@ void audio_task(void)
   }
   // Writes AUDIO_BUFFER_SIZE samples:
   //tud_audio_write((uint32_t *) test_buffer_audio, sizeof(test_buffer_audio));
-  tud_audio_write((uint8_t *) usb_buffer, 144);
+  tud_audio_write((uint8_t *) usb_buffer, AUDIO_BUFFER_SIZE * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX);
 }
 
 /*
